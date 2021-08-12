@@ -7,19 +7,120 @@ output:
 
 
 ## Loading and preprocessing the data
-
+```{R}
+library(tidyverse)
+rawdata <- read.csv("activity.csv")
+stepdata <- rawdata[!is.na(rawdata$steps),]
+```
 
 
 ## What is mean total number of steps taken per day?
+```{r}
+daily_steps <- stepdata %>% 
+  group_by(date) %>% 
+  summarise(total_steps = sum(steps))
 
+ggplot(data = daily_steps, mapping = aes(y=total_steps, x=date)) +
+  geom_col(fill="steelblue") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0)) ## rotate the x labels
+  
+```
+```{r}
+mean_daily_steps <- mean(daily_steps$total_steps)
+median_daily_steps <- median(daily_steps$total_steps)
 
+print(paste("Mean daily steps:", round(mean_daily_steps,1)))
+print(paste("Median daily steps:", median_daily_steps))
 
+```
 ## What is the average daily activity pattern?
 
+```{r}
+daily_pattern <- stepdata %>% 
+  group_by(interval) %>% 
+  summarise(steps = mean(steps))
 
+#with(daily_pattern, plot(x=interval, y=steps, type = "l"))
+
+ggplot(data = daily_pattern, mapping=aes(x=interval, y=steps)) +
+  geom_line(color="steelblue")
+
+```
+
+```{r}
+max_step <- max(daily_pattern$steps)
+max_interval <- daily_pattern[daily_pattern$steps == max_step, 1]
+
+print(paste("Max average steps of", round(max_step,1), "happens at interval", max_interval))
+```
 
 ## Imputing missing values
 
+```{r}
+#count NA rows
 
+NA_rows <- sum(is.na(rawdata$steps))
+print(paste("There are", NA_rows, "missing rows in the dataset."))
+
+```
+```{r}
+#Use the daily_pattern (mean) to impute missing values into filldata
+# use the mean for the 5-minute interval
+
+filldata <- rawdata
+
+for (i in c(1:nrow(filldata))){
+    if(is.na(filldata[i,1])){
+      interval <- filldata[i,3]
+      filldata[i,1] <- daily_pattern[daily_pattern$interval==interval,2]
+    }
+}
+
+filldata_summary <- filldata %>% 
+  group_by(date) %>% 
+  summarise(total_steps = sum(steps))
+
+ggplot(data = filldata_summary, mapping = aes(y=total_steps, x=date)) +
+  geom_col(fill="tomato") +
+  theme(axis.text.x=element_text(angle = -90, hjust = 0)) ## rotate the x labels
+```
+
+
+Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r}
+filled_mean_daily_steps <- mean(filldata_summary$total_steps)
+filled_median_daily_steps <- median(filldata_summary$total_steps)
+
+
+print(paste("Mean daily steps:", round(mean_daily_steps,1)))
+print(paste("Median daily steps:", median_daily_steps))
+
+print(paste("Mean daily steps of imputed data:", round(filled_mean_daily_steps,1)))
+print(paste("Median daily steps of imputed data:", round(filled_median_daily_steps,1)))
+
+
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+filldata <- filldata %>% 
+  mutate(date = as.Date(date,"%Y-%m-%d")) %>% 
+  mutate(daytype = case_when(
+    weekdays(date, abbreviate=TRUE) %in% c("Sat","Sun") ~ "weekend", 
+    weekdays(date, abbreviate=TRUE) %in% c("Mon","Tue","Wed","Thu","Fri") ~ "weekday")
+    ) 
+
+#convert to factor
+filldata[,4] <- as.factor(filldata[,4])
+
+fill_daily_pattern <- filldata %>% 
+  group_by(interval,daytype) %>% 
+  summarise(steps = mean(steps))
+
+ggplot(data = fill_daily_pattern, mapping = aes(x=interval, y=steps)) + 
+  geom_line(color = "steelblue") +
+  facet_wrap(~daytype, nrow=2)
+
+```
